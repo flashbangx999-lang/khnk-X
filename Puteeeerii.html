@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy 21st Birthday Putriiestya!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0d0408; /* Dark pinkish black */
+            font-family: 'Inter', sans-serif;
+            color: #ffffff;
+        }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        .glass-panel {
+            background: rgba(255, 182, 193, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 105, 180, 0.2);
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            overflow: hidden;
+            cursor: pointer;
+            padding: 0;
+            background: none;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 50%;
+            box-shadow: inset 0 0 0 1px rgba(255,105,180,0.4);
+        }
+
+        .shape-btn {
+            transition: all 0.3s ease;
+        }
+        .shape-btn.active {
+            background: rgba(255, 105, 180, 0.25);
+            border-color: rgba(255, 105, 180, 0.6);
+            box-shadow: 0 0 15px rgba(255, 105, 180, 0.3);
+            color: #ffb6c1;
+        }
+        .shape-btn:hover:not(.active) {
+            background: rgba(255, 105, 180, 0.1);
+        }
+        
+        #video-thumbnail {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 120px;
+            border-radius: 12px;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 20;
+            opacity: 0.7;
+            border: 1px solid rgba(255, 105, 180, 0.3);
+            transition: opacity 0.3s ease;
+        }
+        #video-thumbnail:hover {
+            opacity: 1;
+        }
+
+        .loader {
+            border: 3px solid rgba(255, 105, 180, 0.2);
+            border-top: 3px solid #ff69b4;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .content-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            width: 85%;
+            max-width: 900px;
+            max-height: 80vh;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(255, 105, 180, 0.2);
+        }
+
+        .content-overlay.visible {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            pointer-events: auto;
+        }
+
+        .content-overlay::-webkit-scrollbar {
+            width: 8px;
+        }
+        .content-overlay::-webkit-scrollbar-track {
+            background: rgba(255, 105, 180, 0.05);
+            border-radius: 10px;
+        }
+        .content-overlay::-webkit-scrollbar-thumb {
+            background: rgba(255, 105, 180, 0.3);
+            border-radius: 10px;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .photo-grid img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 12px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 10px rgba(255, 105, 180, 0.15);
+        }
+
+        .photo-grid img:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 15px rgba(255, 105, 180, 0.3);
+        }
+        
+        .text-pink-gradient {
+            background: linear-gradient(to right, #ffb6c1, #ff69b4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0d0408] transition-opacity duration-500">
+        <div class="loader mb-4"></div>
+        <h2 class="text-xl font-light tracking-wider text-pink-200">Mempersiapkan Kejutan...</h2>
+        <p class="text-pink-300/60 text-sm mt-2 max-w-md text-center">Sila tunggu sebentar. Izinkan akses kamera, kemudian buka dan tutup tangan anda untuk melihatnya.</p>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+    <video id="video-feed" class="glass-panel" autoplay playsinline></video>
+
+    <!-- UI Controls -->
+    <div class="absolute top-6 left-6 z-20 flex flex-col gap-6 max-w-[280px]">
+        <div class="glass-panel p-5 rounded-2xl shadow-2xl">
+            <h1 class="text-lg font-semibold tracking-wide mb-1 text-pink-100">Happy Birthday! 🌸</h1>
+            <p class="text-xs text-pink-300/70">Putriiestya - May 11, 2027</p>
+            <div class="mt-4 pt-4 border-t border-pink-500/20">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-pink-200">Sensor Tangan</span>
+                    <span id="status-indicator" class="flex h-3 w-3 relative">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-pink-500"></span>
+                    </span>
+                </div>
+                <p class="text-[10px] text-pink-300/50 mt-1">Buka tangan ke kamera untuk memaparkan kenangan ajaib</p>
+            </div>
+        </div>
+
+        <div class="glass-panel p-5 rounded-2xl shadow-2xl flex flex-col gap-5">
+            <div>
+                <label class="text-[10px] font-bold text-pink-300/80 uppercase tracking-wider block mb-3">Pilih Memori</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="shape-btn active py-2 px-3 rounded-lg border border-pink-500/20 text-xs" data-shape="heart">Echoes of Love</button>
+                    <button class="shape-btn py-2 px-3 rounded-lg border border-pink-500/20 text-xs" data-shape="cube">The 21st Magic</button>
+                    <button class="shape-btn py-2 px-3 rounded-lg border border-pink-500/20 text-xs" data-shape="torus">Eternal Moments</button>
+                    <button class="shape-btn py-2 px-3 rounded-lg border border-pink-500/20 text-xs" data-shape="plane">Heartfelt Whispers</button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between border-t border-pink-500/20 pt-4">
+                <label class="text-[10px] font-bold text-pink-300/80 uppercase tracking-wider">Warna Partikel</label>
+                <div class="flex items-center justify-center p-1 border border-pink-500/30 rounded-full">
+                    <!-- Default to pink -->
+                    <input type="color" id="color-picker" value="#ff69b4">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENT OVERLAYS -->
+    
+    <!-- HEART: Echoes of Love -->
+    <div id="content-heart" class="content-overlay glass-panel">
+        <h2 class="text-4xl font-bold mb-2 text-center text-pink-gradient">Echoes of Love 🌸</h2>
+        <p class="text-center text-pink-200/80 mb-6 text-sm">Sedikit kepingan kenangan yang terekam dengan indah...</p>
+        <div class="photo-grid" id="photo-grid-1"></div>
+    </div>
+
+    <!-- CUBE: The 21st Magic -->
+    <div id="content-cube" class="content-overlay glass-panel">
+        <div class="text-center mb-8 border-b border-pink-500/20 pb-6">
+            <h1 class="text-5xl font-bold tracking-wider mb-2 text-pink-gradient">21st</h1>
+            <h2 class="text-3xl font-light mb-1 text-pink-100">Happy Birthday!</h2>
+            <p class="text-sm tracking-[0.2em] text-pink-300/70 uppercase">May 11, 2027</p>
+        </div>
+        
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold mb-3 flex items-center gap-3 text-pink-100">
+                <span class="bg-pink-500/20 text-pink-200 border border-pink-500/30 h-8 w-8 rounded-full flex items-center justify-center text-sm">1</span> 
+                The 21st Magic & Cum Laude
+            </h3>
+            <p class="text-pink-100/80 leading-relaxed text-justify mb-4">
+                Selamat ulang tahun yang ke-21 ya, Put! Selamat juga atas pencapaian luar biasa yang berhasil dapet predikat Cum Laude di semester 5 Unisba ini. Perjuangan kamu di tingkat 3 ini beneran keren banget, dan kamu udah membuktikan kalau kamu bisa melewati semua prosesnya dengan baik.
+            </p>
+            <p class="text-pink-100/80 leading-relaxed text-justify">
+                Di usia yang baru ini, aku doakan semoga langkah kamu ke depannya selalu dipermudah, makin sukses kuliahnya, dan selalu dikelilingi oleh hal-hal bahagia. Semoga apa pun yang kamu cita-citakan dan impikan bisa tercapai satu per satu. Happy 21st Birthday, Put!
+            </p>
+        </div>
+
+        <div>
+            <h3 class="text-xl font-semibold mb-3 flex items-center gap-3 text-pink-100">
+                <span class="bg-pink-500/20 text-pink-200 border border-pink-500/30 h-8 w-8 rounded-full flex items-center justify-center text-sm">2</span> 
+                The Coffee Master
+            </h3>
+            <p class="text-pink-100/80 leading-relaxed text-justify">
+                Btw, kuat banget sih lambung kamu tiap hari minum kopi... Aku aja kalau minum kopi dikit langsung sesak napas. Sehat-sehat terus ya lambungnya! ☕💖
+            </p>
+        </div>
+    </div>
+
+    <!-- TORUS: Eternal Moments -->
+    <div id="content-torus" class="content-overlay glass-panel">
+        <h2 class="text-4xl font-bold mb-2 text-center text-pink-gradient">Eternal Moments 🌸</h2>
+        <p class="text-center text-pink-200/80 mb-6 text-sm">Lebih banyak cerita manis di setiap fotonya...</p>
+        <div class="photo-grid" id="photo-grid-2"></div>
+    </div>
+
+    <!-- PLANE: Heartfelt Whispers -->
+    <div id="content-plane" class="content-overlay glass-panel">
+        <div class="mb-8 border-b border-pink-500/20 pb-8">
+            <h3 class="text-xl font-semibold mb-3 flex items-center gap-3 text-pink-100">
+                <span class="bg-pink-500/20 text-pink-200 border border-pink-500/30 h-8 w-8 rounded-full flex items-center justify-center text-sm">3</span> 
+                Always On My Mind
+            </h3>
+            <p class="text-pink-100/80 leading-relaxed text-justify mb-3">HAHHAHAHAH YESSS ALWAYS UUU!!</p>
+            <p class="text-pink-100/80 leading-relaxed text-justify mb-3">YAP kamu masih jadi orang yang selalu muncul di pikiran aku sampai detik ini!! Makasih yaaa udah pernah ada di keseharian aku dan secara gak langsung selalu jadi alasan aku semangat. Aku gak akan bosan ngasih tahu kalau aku bener-bener kagum dan merasa beruntung pernah kenal kamu. Kamu itu sosok yang keren, mandiri, dan selalu punya daya tarik tersendiri yang bikin aku heboh sendiri kalau ngeliat kamu wkwk!</p>
+            <p class="text-pink-100/80 leading-relaxed text-justify mb-3">Walaupun mungkin perasaan ini cuma dari pihak aku aja (wkwk sad sad dikit gak apa-apa yaa :P), tapi jujur aku seneng banget bisa mengagumi orang sehebat kamu. Maaf yaaa kalau selama ini aku kadang suka over, bikin canggung, atau bikin kamu gak nyaman.</p>
+            <p class="text-pink-100/80 leading-relaxed text-justify mb-3">Semoga di umur 21 tahun ini kamu makin bahagia yaaa, makin bersinar, dan semua hal-hal baik selalu datang ke kamu. Tetep jadi sosok yang luar biasa!</p>
+            <p class="text-pink-100/80 leading-relaxed text-justify font-semibold text-pink-200">DAN SEMANGAT KULIAHNYA!! U CAN DO IT!! Kamu pasti bisa melewati semua tantangan di kampus, jangan pernah minder sama kemampuan kamu yaaa! 🌸✨</p>
+        </div>
+
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold mb-2 text-pink-gradient">Happy 21st Birthday, Putriiestya!</h2>
+            <p class="text-pink-200/80">Wish you all the best and all the happiness in the world. Semoga langkah kamu selalu diiringi keberkahan dan kesuksesan di mana pun kamu berada. ✨🌸</p>
+        </div>
+
+        <div class="bg-pink-900/20 p-6 rounded-xl border border-pink-500/20">
+            <h3 class="text-lg font-semibold mb-3 tracking-wide text-pink-200">A Letter from Me</h3>
+            <p class="text-pink-100/70 leading-relaxed text-sm text-justify mb-3 italic">
+                "Sekalian di momen ini, aku mau meminta maaf yang setulus-tulusnya ya, Put. Aku sadar banget kalau selama ini cara dan tindakan aku kurang tepat, terlalu memaksakan kehendak, dan bikin kamu risih atau nggak nyaman."
+            </p>
+            <p class="text-pink-100/70 leading-relaxed text-sm text-justify mb-3 italic">
+                "Awalnya aku hanya berniat mendekat dan ingin menghibur kamu saat ada masalah, tapi karena kepolosanku dan belum berpengalaman, aku justru salah melangkah dan tidak memahami situasi kamu yang sebenarnya."
+            </p>
+            <p class="text-pink-100/70 leading-relaxed text-sm text-justify italic">
+                "Semua yang terjadi kemarin jadi pelajaran yang sangat berharga buat aku untuk belajar tumbuh lebih dewasa. Ke depannya, aku janji akan jauh lebih baik, tidak akan mengulang sikap yang sama, dan betul-betul menghargai semua batasan kamu. Semoga kamu selalu bahagia dan lancar terus perkuliahan sampai lulus nanti!"
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const photoIDs = [
+            "10vaytkfZ0hKHsaoPDPY48qGdwWVQvF0s", "13psivtWvul4PYxUvBi80EK5mibgNToSH", "14LrN_K1ANbaWbjWse2EO3mjuq8_VSEHd", 
+            "14nYIFq4nMLPoiMJCUUCXjsui3Q0ubNqP", "19EerWcGdZ0wR63JClGtkGUh7L_jOX4UH", "1D8uHZHnXj4NLKsTrsYhbRvPaSHnPfvOM", 
+            "1FtBpRtk5_6WNYIMhjAn-gaMC0fOzklkL", "1L4DEViMcBTXWwywgBFg1J569kGTf2452", "1NIuJNcOXT6UBGxwqzijdtUvx9D23G4-2", 
+            "1Pk8jdaOYyLtVyBQYTC5iTWKuN7LQt5IG", "1RgBtwd835VZHim9b6uosQoj3bRyQbYc9", "1UOq81Ed9zEFdu791ePvmjtAQFPtl4r4s", 
+            "1UfbNgctTsTow8uuPVbeVxBjHFuPDxQMV", "1YaJ5XYl9wIe57FbsrJdXkgbgsWJrys_4", "1ZCSzxRtfFDQf3etpOWcgYiqxsrm4ux0P", 
+            "1ZQlzjpx9Ojh6PllM_IDy3ism9sLtiawh", "1a9LEFkZdBvjAxntIAS3SIfH7GjvEMjTj", "1fQBJJqS_-0JzK5LRR5jD5bUUwbTcnyiS", 
+            "1muE2JlMjD21NcImMS5OzIgEMK_a2zgoE", "1pMABLepECE9d6z0yEEmmAUxZsIFpAd6C", "1q8G_7bvGz7EcpPC4LjKswIsjYZgArTgc", 
+            "1s1pn1Y3ZsDIxHhXMHxeq6HSqdIN9bb7D", "1teCezmVspSwrdJFcZEkAdMcUxSrSrgRd", "1wcZvC5Fmi5NZR5s9KZNxX89gVOX0i7QW", 
+            "1xUcVyKKsQ5cKeD6mWD7DtedfM5OPMQa_", "1y9HhhbmpR79GdTykESvfVPyuIORkZPBa"
+        ];
+
+        const half = Math.ceil(photoIDs.length / 2);
+        const heartPhotos = photoIDs.slice(0, half);
+        const torusPhotos = photoIDs.slice(half);
+
+        function renderPhotos(containerId, ids) {
+            const container = document.getElementById(containerId);
+            ids.forEach(id => {
+                const img = document.createElement('img');
+                img.src = `https://drive.google.com/uc?export=view&id=${id}`;
+                img.loading = "lazy";
+                container.appendChild(img);
+            });
+        }
+        
+        renderPhotos('photo-grid-1', heartPhotos);
+        renderPhotos('photo-grid-2', torusPhotos);
+
+        const PARTICLE_COUNT = 15000;
+        let scene, camera, renderer, particles;
+        let positions, basePositions, explodeOffsets;
+        
+        let currentShape = 'heart';
+        let targetDispersion = 0; 
+        let currentDispersion = 0;
+        
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0d0408, 0.0015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 250;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // MEMBUAT TEKSTUR PARTIKEL BERBENTUK LOVE KECIL
+            const canvasText = document.createElement('canvas');
+            canvasText.width = 64;
+            canvasText.height = 64;
+            const ctx = canvasText.getContext('2d');
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.translate(32, 22); // Center drawing
+            ctx.scale(1.2, 1.2);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(0, -10, -15, -15, -20, -5);
+            ctx.bezierCurveTo(-25, 5, -10, 20, 0, 30);
+            ctx.bezierCurveTo(10, 20, 25, 5, 20, -5);
+            ctx.bezierCurveTo(15, -15, 0, -10, 0, 0);
+            ctx.fill();
+
+            const texture = new THREE.CanvasTexture(canvasText);
+
+            const geometry = new THREE.BufferGeometry();
+            positions = new Float32Array(PARTICLE_COUNT * 3);
+            basePositions = new Float32Array(PARTICLE_COUNT * 3);
+            explodeOffsets = new Float32Array(PARTICLE_COUNT * 3);
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('basePosition', new THREE.BufferAttribute(basePositions, 3));
+            
+            const colorHex = document.getElementById('color-picker').value;
+            
+            const material = new THREE.PointsMaterial({
+                size: 4.0, // Sedikit diperbesar agar bentuk love terlihat
+                color: new THREE.Color(colorHex),
+                map: texture,
+                transparent: true,
+                opacity: 0.9,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            generateShape(currentShape);
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function generateShape(shapeType) {
+            const size = 100;
+            
+            if (shapeType === 'heart') {
+                // ALGORITMA MEMBUAT PLANET BENTUK 3D LOVE BESAR
+                let count = 0;
+                while(count < PARTICLE_COUNT) {
+                    // Random point in 3D box
+                    let hx = (Math.random() - 0.5) * 2.5;
+                    let hy = (Math.random() - 0.5) * 2.5;
+                    let hz = (Math.random() - 0.5) * 2.5;
+                    
+                    // 3D Heart Mathematical Formula
+                    let a = hx*hx + 2.25*hz*hz + hy*hy - 1;
+                    let val = a*a*a - hx*hx*hy*hy*hy - 0.1125*hz*hz*hy*hy*hy;
+                    
+                    if (val <= 0) { // If point is inside the heart
+                        const i3 = count * 3;
+                        let x = hx * size;
+                        let y = hy * size;
+                        let z = hz * size;
+                        
+                        basePositions[i3] = x;
+                        basePositions[i3 + 1] = y;
+                        basePositions[i3 + 2] = z;
+                        
+                        if (positions[i3] === 0 && positions[i3+1] === 0 && positions[i3+2] === 0) {
+                             positions[i3] = x;
+                             positions[i3 + 1] = y;
+                             positions[i3 + 2] = z;
+                        }
+
+                        const mag = Math.sqrt(x*x + y*y + z*z) || 1;
+                        const explodeForce = 2.0 + Math.random() * 3.0; 
+                        explodeOffsets[i3] = (x / mag) * size * explodeForce + (Math.random() - 0.5) * 50;
+                        explodeOffsets[i3 + 1] = (y / mag) * size * explodeForce + (Math.random() - 0.5) * 50;
+                        explodeOffsets[i3 + 2] = (z / mag) * size * explodeForce + (Math.random() - 0.5) * 50;
+                        
+                        count++;
+                    }
+                }
+            } else {
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    let x, y, z;
+                    
+                    if (shapeType === 'cube') {
+                        x = (Math.random() - 0.5) * size * 1.5;
+                        y = (Math.random() - 0.5) * size * 1.5;
+                        z = (Math.random() - 0.5) * size * 1.5;
+                    }
+                    else if (shapeType === 'torus') {
+                        const R = size * 0.8;
+                        const r = size * 0.3;
+                        const u = Math.random() * Math.PI * 2;
+                        const v = Math.random() * Math.PI * 2;
+                        const randomR = r * Math.sqrt(Math.random()); 
+                        x = (R + randomR * Math.cos(v)) * Math.cos(u);
+                        y = (R + randomR * Math.cos(v)) * Math.sin(u);
+                        z = randomR * Math.sin(v);
+                    }
+                    else if (shapeType === 'plane') {
+                        x = (Math.random() - 0.5) * size * 2.5;
+                        y = (Math.random() - 0.5) * size * 2.5;
+                        z = (Math.random() - 0.5) * 10;
+                    }
+
+                    const i3 = i * 3;
+                    basePositions[i3] = x;
+                    basePositions[i3 + 1] = y;
+                    basePositions[i3 + 2] = z;
+                    
+                    if (positions[i3] === 0 && positions[i3+1] === 0 && positions[i3+2] === 0) {
+                         positions[i3] = x;
+                         positions[i3 + 1] = y;
+                         positions[i3 + 2] = z;
+                    }
+
+                    const mag = Math.sqrt(x*x + y*y + z*z) || 1;
+                    const explodeForce = 2.0 + Math.random() * 3.0; 
+                    explodeOffsets[i3] = (x / mag) * size * explodeForce + (Math.random() - 0.5) * 50;
+                    explodeOffsets[i3 + 1] = (y / mag) * size * explodeForce + (Math.random() - 0.5) * 50;
+                    explodeOffsets[i3 + 2] = (z / mag) * size * explodeForce + (Math.random() - 0.5) * 50;
+                }
+            }
+            
+            particles.geometry.attributes.basePosition.needsUpdate = true;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function initMediaPipe() {
+            const videoElement = document.getElementById('video-feed');
+            const statusIndicator = document.querySelector('#status-indicator span:last-child');
+            const statusPing = document.querySelector('#status-indicator span:first-child');
+            const loadingScreen = document.getElementById('loading-screen');
+
+            const hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }
+            });
+
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            hands.onResults((results) => {
+                if (loadingScreen.style.opacity !== '0') {
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => loadingScreen.style.display = 'none', 500);
+                }
+
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    statusIndicator.classList.remove('bg-pink-500');
+                    statusIndicator.classList.add('bg-green-400');
+                    statusPing.classList.remove('bg-pink-400');
+                    statusPing.classList.add('bg-green-300');
+
+                    const landmarks = results.multiHandLandmarks[0];
+                    calculateHandOpenness(landmarks);
+                } else {
+                    statusIndicator.classList.remove('bg-green-400');
+                    statusIndicator.classList.add('bg-pink-500');
+                    statusPing.classList.remove('bg-green-300');
+                    statusPing.classList.add('bg-pink-400');
+                    
+                    targetDispersion = 0.0; 
+                }
+            });
+
+            const cameraObj = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 320,
+                height: 240
+            });
+            
+            cameraObj.start().catch(err => {
+                console.error("Camera access denied", err);
+                loadingScreen.innerHTML = `
+                    <h2 class="text-xl font-light text-pink-400 mb-2">Akses Kamera Ditolak</h2>
+                    <p class="text-sm text-pink-300/70">Tolong izinkan akses kamera agar kejutan ulang tahunnya boleh dilihat menerusi pergerakan tangan.</p>
+                    <button onclick="location.reload()" class="mt-4 px-4 py-2 border border-pink-500/30 text-pink-200 rounded-lg hover:bg-pink-500/20">Cuba Lagi</button>
+                `;
+            });
+        }
+
+        function calculateHandOpenness(landmarks) {
+            const wrist = landmarks[0];
+            const fingerTips = [4, 8, 12, 16, 20];
+            let avgDistance = 0;
+
+            fingerTips.forEach(tipIdx => {
+                const tip = landmarks[tipIdx];
+                const dx = tip.x - wrist.x;
+                const dy = tip.y - wrist.y;
+                const dz = tip.z - wrist.z;
+                avgDistance += Math.sqrt(dx*dx + dy*dy + dz*dz);
+            });
+            
+            avgDistance /= fingerTips.length;
+            
+            let normalized = (avgDistance - 0.2) / 0.25; 
+            normalized = Math.max(0, Math.min(normalized, 1)); 
+            targetDispersion = Math.pow(normalized, 1.5) * 1.5; 
+        }
+
+        function updateContentVisibility() {
+            const threshold = 0.8; 
+            
+            const contents = {
+                'heart': document.getElementById('content-heart'),
+                'cube': document.getElementById('content-cube'),
+                'torus': document.getElementById('content-torus'),
+                'plane': document.getElementById('content-plane')
+            };
+
+            Object.values(contents).forEach(el => el.classList.remove('visible'));
+
+            if (currentDispersion > threshold) {
+                if (contents[currentShape]) {
+                    contents[currentShape].classList.add('visible');
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            currentDispersion += (targetDispersion - currentDispersion) * 0.08;
+            
+            updateContentVisibility();
+
+            const posAttribute = particles.geometry.attributes.position;
+            const baseAttribute = particles.geometry.attributes.basePosition;
+
+            particles.rotation.y += 0.002;
+            
+            // Adjust rotation logic if it's the heart to make it look upright
+            if(currentShape === 'heart') {
+                particles.rotation.x = 0; 
+            } else {
+                particles.rotation.x += 0.001;
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                const targetX = baseAttribute.array[i3] + explodeOffsets[i3] * currentDispersion;
+                const targetY = baseAttribute.array[i3 + 1] + explodeOffsets[i3 + 1] * currentDispersion;
+                const targetZ = baseAttribute.array[i3 + 2] + explodeOffsets[i3 + 2] * currentDispersion;
+
+                const time = Date.now() * 0.001;
+                const hoverOffset = Math.sin(time + i) * 0.5 * (1 - currentDispersion); 
+
+                posAttribute.array[i3] += (targetX - posAttribute.array[i3]) * 0.1;
+                posAttribute.array[i3 + 1] += (targetY + hoverOffset - posAttribute.array[i3 + 1]) * 0.1;
+                posAttribute.array[i3 + 2] += (targetZ - posAttribute.array[i3 + 2]) * 0.1;
+            }
+
+            posAttribute.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        function setupUI() {
+            const shapeBtns = document.querySelectorAll('.shape-btn');
+            shapeBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    shapeBtns.forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentShape = e.target.dataset.shape;
+                    generateShape(currentShape);
+                });
+            });
+
+            const colorPicker = document.getElementById('color-picker');
+            colorPicker.addEventListener('input', (e) => {
+                if(particles && particles.material) {
+                    particles.material.color.setHex(e.target.value.replace('#', '0x'));
+                }
+            });
+        }
+
+        window.onload = () => {
+            initThreeJS();
+            setupUI();
+            initMediaPipe();
+            animate();
+        };
+    </script>
+</body>
+</html>
